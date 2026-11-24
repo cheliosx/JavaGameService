@@ -1,7 +1,6 @@
 package com.example.game.logic;
 
 import com.example.game.action.LoginAction;
-import com.example.game.exception.ErrorCode;
 import com.iohao.game.action.skeleton.core.BarSkeleton;
 import com.iohao.game.action.skeleton.core.BarSkeletonBuilder;
 import com.iohao.game.action.skeleton.core.BarSkeletonBuilderParamConfig;
@@ -24,11 +23,14 @@ public class GameLogicServer extends AbstractBrokerClientStartup {
     public BarSkeleton createBarSkeleton() {
         BarSkeletonBuilderParamConfig config = new BarSkeletonBuilderParamConfig()
                 // 扫描该包下所有 @ActionController，自动完成路由注册
-                .scanActionPackage(LoginAction.class)
-                // 注册业务错误码，框架据此把 code/msg 写回响应
-                .addErrorCode(ErrorCode.values());
+                .scanActionPackage(LoginAction.class);
 
         BarSkeletonBuilder builder = config.createBuilder();
+
+        // 业务错误码无需在此注册：ioGame 21.x 的 MsgException 自带 MsgExceptionInfo，
+        // 抛出时框架直接读取 code 写回 responseStatus，而不是查注册表。
+        // 旧写法 addErrorCode(MsgExceptionInfo[]) / addMsgExceptionInfo(...) 均已废弃，
+        // 且其维护的 msgExceptionInfoList 在 build() 中从未被读取，保留只会带来 deprecated 告警。
 
         // 控制台打印 路由/参数/返回值/耗时，开发期必备；上线建议关闭
         builder.addInOut(new DebugInOut());

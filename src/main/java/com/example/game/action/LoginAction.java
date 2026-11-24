@@ -12,6 +12,7 @@ import com.iohao.game.action.skeleton.annotation.ActionController;
 import com.iohao.game.action.skeleton.annotation.ActionMethod;
 import com.iohao.game.action.skeleton.core.exception.MsgException;
 import com.iohao.game.action.skeleton.core.flow.FlowContext;
+import com.iohao.game.action.skeleton.protocol.login.SettingUserIdResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,9 +54,15 @@ public class LoginAction {
 
         LoginSessionService.Session session = GameContext.loginSessionService().create(user.userId());
 
-        // 把 userId 绑定到当前连接：此后该连接上的请求，框架会自动带上 userId
-        boolean bound = flowContext.setUserId(user.userId());
-        ErrorCode.BIND_USER_FAILED.assertTrue(bound);
+        // 把 userId 绑定到当前连接：此后该连接上的请求，框架会自动带上 userId。
+        // setUserId(long) 已废弃（该动作语义是「绑定」而非「设置」，且绑定后不可更改），
+        // 改用 bindingUserIdAndGetResult：失败时能拿到具体原因，而不是只有一个 false。
+        SettingUserIdResult bindResult = flowContext.bindingUserIdAndGetResult(user.userId());
+        if (!bindResult.success()) {
+            // 走到这里说明前置的 ALREADY_LOGIN 没拦住，属于异常场景，需要完整堆栈定位
+            log.warn("登录态绑定失败 userId={} username={}", user.userId(), user.username(), bindResult.exception());
+        }
+        ErrorCode.BIND_USER_FAILED.assertTrue(bindResult.success());
 
         log.info("用户登录成功 userId={} username={}", user.userId(), user.username());
 
@@ -94,7 +101,7 @@ public class LoginAction {
      * <p><b>单向协议</b>：返回 {@code void} 的 action 不会产生响应包（客户端不等待回执）。
      * 登出属于「尽力而为」操作，客户端发完即可主动断开重连。
      *
-     * <p>注意：这里<b>不调用</b> {@code setUserId(0)} 试图解绑 —— ioGame 的连接级 userId
+     * <p>注意：这里<b>不调用</b> {@code bindingUserId(0)} 试图解绑 —— ioGame 的连接级 userId
      * 绑定是单向不可逆的（既不能改绑，也不能置 0）。真正的「退出」靠客户端断连完成，
      * 断连后新连接自然没有 userId。服务端这边的职责是让 token 作废。
      *
